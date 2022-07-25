@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddSingleton<IRepository<Transaction>, TransactionRepository>();
+//builder.Services.AddSingleton<IRepository<Transaction>, TransactionRepository>();
 builder.Services.AddSingleton<ITransactionService, TransactionService>();
 builder.Services.AddSingleton<ApplicationContext>();
 builder.Services.AddSingleton<ITransactionMapper, TransactionMapper>();
@@ -24,7 +24,7 @@ app.UseAuthorization();
 app.Run("http://localhost:3000");
 
 
-static WebApplicationBuilder CreateHost(string[] args)
+/*static WebApplicationBuilder CreateHost(string[] args)
 {
     var builder = WebApplication.CreateBuilder(args);
 
@@ -35,4 +35,4 @@ static WebApplicationBuilder CreateHost(string[] args)
     builder.Services.AddSingleton<ApplicationContext>();
     builder.Services.AddSingleton<ITransactionMapper, TransactionMapper>();
     return builder;
-}
+}*/

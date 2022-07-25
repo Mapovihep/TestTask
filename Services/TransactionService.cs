@@ -47,7 +47,7 @@ namespace TestTask.Services
             catch (AggregateException ex)
             {
                 tokenSource.Cancel();
-                foreach(Exception e in ex.InnerExceptions)
+                foreach(var e in ex.InnerExceptions)
                 {
                     if (e is TaskCanceledException)
                         throw e;
@@ -59,7 +59,7 @@ namespace TestTask.Services
         public async Task StatusChangingOn(TransactionStatus status, Transaction newTransaction, CancellationToken token, SemaphoreSlim semaphore)
         {
             /*var currentTransaction = await Context.Transaction.FirstOrDefaultAsync(x => x.Id == id);*/
-            var delay = 2000;
+            var delay = 120000;
             try
             {
                 if (status == TransactionStatus.Running)
@@ -83,9 +83,14 @@ namespace TestTask.Services
                 await Context.SaveChangesAsync();
                 semaphore = new SemaphoreSlim(0, 1);
             }
-            catch (Exception ex)
+            catch (AggregateException ex)
             {
-                token.ThrowIfCancellationRequested();
+                foreach (var e in ex.InnerExceptions)
+                {
+                    if (e is TaskCanceledException)
+                        throw e;
+                }
+                throw ex;
             }
         }
         public async Task<TransactionDto> GetTransactionById(string id)
