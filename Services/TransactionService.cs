@@ -9,6 +9,7 @@ namespace TestTask.Services
     {
         ApplicationContext Context;
         ITransactionMapper mapper;
+        static SemaphoreSlim semaphore;
         public TransactionService(IServiceProvider _serviceProvider)
         {
             mapper = _serviceProvider.GetService<ITransactionMapper>();
@@ -16,6 +17,10 @@ namespace TestTask.Services
         }
         public async Task<Guid> CreateTransaction()
         {
+            if (semaphore==null || semaphore.CurrentCount < 1)
+                semaphore = new SemaphoreSlim(0, 1);
+            else
+                semaphore.Wait();
             var tokenSource = new CancellationTokenSource();
             var token = tokenSource.Token;  
             try
@@ -25,49 +30,62 @@ namespace TestTask.Services
                     TransactionTime = DateTime.Now,
                     Status = TransactionStatus.Created
                 };
+                semaphore.Release();
                 await Context.Transaction.AddAsync(newTransaction);
                 await Context.SaveChangesAsync();
-                newTransaction = await Context.Transaction.FirstOrDefaultAsync();
+                semaphore = new SemaphoreSlim(0, 1);
                 Task task = Task.Run(async () =>
                 {
-                    await StatusChangingOn(TransactionStatus.Running, newTransaction.Id, token);
+                    await StatusChangingOn(TransactionStatus.Running, newTransaction, token, semaphore);
                 });
                 task.ContinueWith(task=>
                 {
-                    StatusChangingOn(TransactionStatus.Finished, newTransaction.Id, token);
+                    StatusChangingOn(TransactionStatus.Finished, newTransaction, token, semaphore);
                 });
                 return newTransaction.Id;
             }
-            catch (Exception ex)
+            catch (AggregateException ex)
             {
+                tokenSource.Cancel();
+                foreach(Exception e in ex.InnerExceptions)
+                {
+                    if (e is TaskCanceledException)
+                        throw e;
+                }
                 throw ex;
             }
         }
 
-        public async Task StatusChangingOn(TransactionStatus status, Guid id, CancellationToken token)
+        public async Task StatusChangingOn(TransactionStatus status, Transaction newTransaction, CancellationToken token, SemaphoreSlim semaphore)
         {
-            var currentTransaction = await Context.Transaction.FirstOrDefaultAsync(x => x.Id == id);
-            var delay = 120000;
+            /*var currentTransaction = await Context.Transaction.FirstOrDefaultAsync(x => x.Id == id);*/
+            var delay = 2000;
             try
             {
                 if (status == TransactionStatus.Running)
                 {
                     Console.WriteLine(DateTime.Now);
-                    Console.WriteLine($"Transaction with id = {id} is created and will be running");
+                    Console.WriteLine($"Transaction with id = {newTransaction.Id} is created and will be running");
                 }
                 else
                 {
                     Console.WriteLine(DateTime.Now);
-                    Console.WriteLine($"Transaction with id = {id} is running and will be finished in {delay}ms");
+                    Console.WriteLine($"Transaction with id = {newTransaction.Id} is running and will be finished in {delay}ms");
+                    
                     Task.Delay(delay).Wait();
                     Console.WriteLine(DateTime.Now);
                 }
-                currentTransaction.Status = status;
-                Context.Update(currentTransaction);
+                newTransaction.Status = status;
+                if (semaphore.CurrentCount == 1)
+                    semaphore.Wait();
+                semaphore.Release();
+                Context.Update(newTransaction);
                 await Context.SaveChangesAsync();
-            }catch (Exception ex)
+                semaphore = new SemaphoreSlim(0, 1);
+            }
+            catch (Exception ex)
             {
-                new CancellationTokenSource().Cancel();
+                token.ThrowIfCancellationRequested();
             }
         }
         public async Task<TransactionDto> GetTransactionById(string id)

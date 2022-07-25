@@ -1,12 +1,14 @@
 using TestTask.Context;
 using TestTask.DTO;
+using TestTask.Models;
+using TestTask.Repository;
 using TestTask.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddRazorPages();
 builder.Services.AddControllersWithViews();
+builder.Services.AddSingleton<IRepository<Transaction>, TransactionRepository>();
 builder.Services.AddSingleton<ITransactionService, TransactionService>();
 builder.Services.AddSingleton<ApplicationContext>();
 builder.Services.AddSingleton<ITransactionMapper, TransactionMapper>();
@@ -20,3 +22,17 @@ app.MapControllerRoute(
 app.UseAuthorization();
 
 app.Run("http://localhost:3000");
+
+
+static WebApplicationBuilder CreateHost(string[] args)
+{
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Services.AddControllersWithViews();
+    builder.Services.AddSingleton<IRepository<Transaction>, TransactionRepository>();
+
+    builder.Services.AddSingleton<ITransactionService, TransactionService>();
+    builder.Services.AddSingleton<ApplicationContext>();
+    builder.Services.AddSingleton<ITransactionMapper, TransactionMapper>();
+    return builder;
+}
